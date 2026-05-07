@@ -3,7 +3,7 @@
 // Деплой: Railway.app (бесплатно) — см. README
 // =============================================
 
-const TOKEN = "8605154591:AAGo3GeD-cMkYa6Q7D5872flQbP0y1NY4qE";
+const TOKEN = "8605154591:AAGV2r2mvzxrj2ZKH6IlX_z4Vyl8X5v25T4";
 const OWNER_CHAT_ID = 551749665;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
@@ -102,7 +102,7 @@ const CASES = {
 Оставьте ваш контакт — и мы свяжемся в течение 2 часов:`,
     keyboard: {
       inline_keyboard: [[
-        { text: "📞 Оставить заявку на сайте", url: "https://ваш-сайт.ru/#form" }
+        { text: "📞 Оставить заявку на сайте", url: "https://blackithart.com/#form" }
       ]]
     }
   }
