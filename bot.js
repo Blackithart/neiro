@@ -3,7 +3,7 @@
 // Деплой: Railway.app (бесплатно) — см. README
 // =============================================
 
-const TOKEN = "8605154591:AAGV2r2mvzxrj2ZKH6IlX_z4Vyl8X5v25T4";
+const TOKEN = "8605154591:AAGo3GeD-cMkYa6Q7D5872flQbP0y1NY4qE";
 const OWNER_CHAT_ID = 551749665;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
