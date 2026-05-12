@@ -1,6 +1,15 @@
 {
   "name": "neuro-bot",
-  "version": "1.0.0",
+  "version": "2.1.0",
+  "description": "НЕЙРО — Telegram прогрев-бот",
   "main": "bot.js",
-  "scripts": { "start": "node bot.js" }
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  }
 }
