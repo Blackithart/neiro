@@ -3,8 +3,8 @@
 // Исправлено: node-fetch fallback + сброс webhook
 // =============================================
 
-const TOKEN = process.env.BOT_TOKEN;
-if (!TOKEN) { console.error("❌ Переменная окружения BOT_TOKEN не задана"); process.exit(1); }
+const TOKEN = process.env.BOT_TOKEN || "8605154591:AAGo3GeD-cMkYa6Q7D5872flQbP0y1NY4qE";
+if (!TOKEN) { console.error("❌ Токен не задан"); process.exit(1); }
 const OWNER_CHAT_ID = 551749665;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
