@@ -1,16 +1,26 @@
 // =============================================
-// НЕЙРО — Telegram бот v2
-// Диалог, сбор контактов, перезапуск
+// НЕЙРО — Telegram бот v2.1
+// Исправлено: node-fetch fallback + сброс webhook
 // =============================================
 
 const TOKEN = "8605154591:AAGV2r2mvzxrj2ZKH6IlX_z4Vyl8X5v25T4";
 const OWNER_CHAT_ID = 551749665;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
+// Поддержка Node.js < 18 (без встроенного fetch)
+let _fetch;
+try {
+  _fetch = fetch; // Node 18+
+  if (typeof _fetch === "undefined") throw new Error();
+} catch {
+  try { _fetch = require("node-fetch"); } catch {
+    console.error("❌ Установите node-fetch: npm install node-fetch");
+    process.exit(1);
+  }
+}
+
 // =============================================
 // ХРАНИЛИЩЕ ПОЛЬЗОВАТЕЛЕЙ
-// state: "idle" | "collecting_name" | "collecting_phone" |
-//        "collecting_company" | "collecting_industry" | "done"
 // =============================================
 const users = {};
 
@@ -29,23 +39,26 @@ function resetUser(chat_id, from) {
 // =============================================
 // УТИЛИТЫ
 // =============================================
-async function send(chat_id, text, extra = {}) {
+async function api(method, body = {}) {
   try {
-    const res = await fetch(`${API}/sendMessage`, {
+    const res = await _fetch(`${API}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id, text, parse_mode: "Markdown", ...extra }),
+      body: JSON.stringify(body),
     });
     return await res.json();
-  } catch (e) { console.error("send error:", e.message); }
+  } catch (e) {
+    console.error(`API error [${method}]:`, e.message);
+    return null;
+  }
+}
+
+async function send(chat_id, text, extra = {}) {
+  return api("sendMessage", { chat_id, text, parse_mode: "Markdown", ...extra });
 }
 
 async function answerCallback(id) {
-  await fetch(`${API}/answerCallbackQuery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ callback_query_id: id }),
-  });
+  return api("answerCallbackQuery", { callback_query_id: id });
 }
 
 function scheduleMessage(chat_id, hours, text, keyboard) {
@@ -89,7 +102,7 @@ async function sendWelcome(chat_id) {
 }
 
 // =============================================
-// КОНТЕНТ
+// КОНТЕНТ — КЕЙСЫ И ЧЕК-ЛИСТ
 // =============================================
 const CONTENT = {
   case_1: {
@@ -97,7 +110,7 @@ const CONTENT = {
       `📦 *Кейс 1 — Ретейл / E-commerce*\n\n` +
       `Интернет-магазин внедрил чат-бота на GigaChat — 85% обращений без оператора.\n\n` +
       `*Результат за 3 месяца:*\n• —78% нагрузки на поддержку\n• +31% NPS клиентов\n• Запуск за 3 недели\n\n` +
-      `Окупаемость — 2–3 месяца при команде поддержки от 3 человек.`,
+      `Окупаемость — 2–3 месяца при команде от 3 человек.`,
     keyboard: { inline_keyboard: [
       [{ text: "Следующий кейс →", callback_data: "case_2" }],
       [{ text: "← Главное меню", callback_data: "main_menu" }],
@@ -149,9 +162,7 @@ async function startCollect(chat_id, user) {
   user.state = "collecting_name";
   user.contact = {};
   await send(chat_id,
-    `🎯 *Запись на бесплатный аудит*\n\n` +
-    `Задам 4 коротких вопроса — займёт меньше минуты.\n\n` +
-    `Как вас зовут? _(имя и фамилия)_`,
+    `🎯 *Запись на бесплатный аудит*\n\nЗадам 4 коротких вопроса — займёт меньше минуты.\n\nКак вас зовут? _(имя и фамилия)_`,
     { reply_markup: { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "main_menu" }]] } }
   );
 }
@@ -177,7 +188,6 @@ async function handleCollecting(chat_id, user, text) {
         { reply_markup: { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "main_menu" }]] } }
       );
       break;
-
     case "collecting_phone":
       user.contact.phone = text;
       user.state = "collecting_company";
@@ -185,13 +195,11 @@ async function handleCollecting(chat_id, user, text) {
         reply_markup: { inline_keyboard: [[{ text: "Пропустить →", callback_data: "skip_company" }]] }
       });
       break;
-
     case "collecting_company":
       user.contact.company = text;
       user.state = "collecting_industry";
       await askIndustry(chat_id);
       break;
-
     case "collecting_industry":
       user.contact.industry = text;
       await finishCollect(chat_id, user);
@@ -202,7 +210,6 @@ async function handleCollecting(chat_id, user, text) {
 async function finishCollect(chat_id, user) {
   user.state = "done";
   const c = user.contact;
-
   await send(OWNER_CHAT_ID,
     `🔥 *Новый лид из Telegram-бота*\n\n` +
     `👤 *Имя:* ${c.name || "—"}\n` +
@@ -212,16 +219,12 @@ async function finishCollect(chat_id, user) {
     `🔗 *Telegram:* @${user.username || "нет"}\n` +
     `🆔 *chat_id:* ${chat_id}`
   );
-
   await send(chat_id,
-    `✅ *Заявка принята!*\n\n` +
-    `Эксперт свяжется с вами в течение *2 часов* в рабочее время.\n\n` +
-    `Пока ждёте — можете посмотреть кейсы или задать вопрос 👇`,
+    `✅ *Заявка принята!*\n\nЭксперт свяжется с вами в течение *2 часов* в рабочее время.\n\nПока ждёте — можете посмотреть кейсы или задать вопрос 👇`,
     { reply_markup: MAIN_MENU }
   );
-
   scheduleMessage(chat_id, 24,
-    `💡 *Пока готовимся к звонку...*\n\nКомпании, внедряющие ИИ поэтапно — начиная с одного процесса — получают ROI на 40% быстрее. Обсудим, с чего лучше начать именно вам! 🚀`,
+    `💡 *Пока готовимся к звонку...*\n\nКомпании, внедряющие ИИ поэтапно, получают ROI на 40% быстрее. Обсудим, с чего начать именно вам! 🚀`,
     { inline_keyboard: [[{ text: "← Меню", callback_data: "main_menu" }]] }
   );
 }
@@ -235,51 +238,27 @@ async function handleCallback(query) {
   const user = getUser(chat_id, query.from);
   await answerCallback(query.id);
 
-  if (data === "restart") {
-    resetUser(chat_id, query.from);
-    await send(chat_id, `🔄 Начинаем сначала!`);
-    await sendWelcome(chat_id);
-    return;
-  }
-  if (data === "main_menu") {
-    user.state = "idle";
-    await sendWelcome(chat_id);
-    return;
-  }
+  if (data === "restart") { resetUser(chat_id, query.from); await send(chat_id, `🔄 Начинаем сначала!`); await sendWelcome(chat_id); return; }
+  if (data === "main_menu") { user.state = "idle"; await sendWelcome(chat_id); return; }
   if (data === "start_collect") { await startCollect(chat_id, user); return; }
   if (data === "ask_question") {
     user.state = "idle";
-    await send(chat_id,
-      `💬 Напишите ваш вопрос — ответим в ближайшие часы.\n\nИли перейдите на сайт:`,
-      { reply_markup: { inline_keyboard: [
+    await send(chat_id, `💬 Напишите ваш вопрос — ответим в ближайшие часы.\n\nИли перейдите на сайт:`, {
+      reply_markup: { inline_keyboard: [
         [{ text: "🌐 Перейти на сайт", url: "https://blackithart.com/#form" }],
         [{ text: "← Главное меню", callback_data: "main_menu" }],
-      ]}}
-    );
+      ]}
+    });
     return;
   }
-  if (data === "skip_company") {
-    user.contact.company = "не указана";
-    user.state = "collecting_industry";
-    await askIndustry(chat_id);
-    return;
-  }
+  if (data === "skip_company") { user.contact.company = "не указана"; user.state = "collecting_industry"; await askIndustry(chat_id); return; }
   if (data.startsWith("industry_")) {
     const industry = data.replace("industry_", "");
-    if (industry === "other") {
-      user.state = "collecting_industry";
-      await send(chat_id, `Напишите вашу отрасль:`);
-    } else {
-      user.contact.industry = industry;
-      await finishCollect(chat_id, user);
-    }
+    if (industry === "other") { user.state = "collecting_industry"; await send(chat_id, `Напишите вашу отрасль:`); }
+    else { user.contact.industry = industry; await finishCollect(chat_id, user); }
     return;
   }
-  if (CONTENT[data]) {
-    const c = CONTENT[data];
-    await send(chat_id, c.text, { reply_markup: c.keyboard });
-    return;
-  }
+  if (CONTENT[data]) { await send(chat_id, CONTENT[data].text, { reply_markup: CONTENT[data].keyboard }); return; }
 }
 
 // =============================================
@@ -293,70 +272,59 @@ async function handleMessage(msg) {
   if (text === "/start") {
     resetUser(chat_id, msg.from);
     await send(OWNER_CHAT_ID,
-      `🤖 *Новый пользователь*\n\n` +
-      `👤 ${msg.from.first_name || ""} ${msg.from.last_name || ""}\n` +
-      `🔗 @${msg.from.username || "нет"}\n🆔 ${chat_id}`
+      `🤖 *Новый пользователь*\n\n👤 ${msg.from.first_name || ""} ${msg.from.last_name || ""}\n🔗 @${msg.from.username || "нет"}\n🆔 ${chat_id}`
     );
     await sendWelcome(chat_id);
     scheduleMessage(chat_id, 24,
-      `📊 Российские компании, внедрившие ИИ в 2024–2025 году, сократили операционные расходы в среднем на 23%. Хотите узнать потенциал для вашего бизнеса?`,
+      `📊 Российские компании, внедрившие ИИ в 2024–2025 году, сократили расходы в среднем на 23%. Хотите узнать потенциал для вашего бизнеса?`,
       { inline_keyboard: [[{ text: "🎯 Записаться на аудит", callback_data: "start_collect" }]] }
     );
     scheduleMessage(chat_id, 72,
-      `🔔 Мы проводим бесплатный экспресс-аудит — 45 минут, без обязательств. Покажем конкретные цифры для вашей отрасли.`,
+      `🔔 Проводим бесплатный экспресс-аудит — 45 минут, без обязательств. Покажем цифры для вашей отрасли.`,
       { inline_keyboard: [[{ text: "🎯 Записаться", callback_data: "start_collect" }, { text: "← Меню", callback_data: "main_menu" }]] }
     );
     scheduleMessage(chat_id, 168,
-      `🙏 Последнее сообщение. Если тема ИИ пока не актуальна — не беспокоим. Если актуальна — будем рады помочь!`,
+      `🙏 Последнее сообщение. Если тема ИИ не актуальна — не беспокоим. Если актуальна — будем рады помочь!`,
       { inline_keyboard: [[{ text: "Записаться на аудит →", callback_data: "start_collect" }]] }
     );
     return;
   }
-
-  if (text === "/restart" || text === "/menu") {
-    resetUser(chat_id, msg.from);
-    await sendWelcome(chat_id);
-    return;
-  }
-  if (text === "/stop") {
-    user.unsubscribed = true;
-    user.state = "idle";
-    await send(chat_id, `Вы отписались от рассылки. Напишите /start, чтобы вернуться.`);
-    return;
-  }
+  if (text === "/restart" || text === "/menu") { resetUser(chat_id, msg.from); await sendWelcome(chat_id); return; }
+  if (text === "/stop") { user.unsubscribed = true; user.state = "idle"; await send(chat_id, `Вы отписались. Напишите /start, чтобы вернуться.`); return; }
   if (text === "/help") {
-    await send(chat_id,
-      `📋 *Команды:*\n\n/start — начало\n/restart — начать сначала\n/menu — главное меню\n/stop — отписаться\n/help — справка`
-    );
+    await send(chat_id, `📋 *Команды:*\n\n/start — начало\n/restart — начать сначала\n/menu — главное меню\n/stop — отписаться\n/help — справка`);
     return;
   }
 
-  // Диалог сбора контактов
   const collectingStates = ["collecting_name", "collecting_phone", "collecting_company", "collecting_industry"];
-  if (collectingStates.includes(user.state)) {
-    await handleCollecting(chat_id, user, text);
-    return;
-  }
+  if (collectingStates.includes(user.state)) { await handleCollecting(chat_id, user, text); return; }
 
-  // Любое другое сообщение
-  await send(OWNER_CHAT_ID,
-    `💬 *Сообщение от пользователя*\n\n` +
-    `👤 ${msg.from.first_name || ""} (@${msg.from.username || "нет"})\n` +
-    `🆔 ${chat_id}\n\n"${text}"`
-  );
-  await send(chat_id,
-    `✅ Сообщение получено! Ответим в ближайшее время.\n\nПока — воспользуйтесь меню:`,
-    { reply_markup: MAIN_MENU }
-  );
+  await send(OWNER_CHAT_ID, `💬 *Сообщение от пользователя*\n\n👤 ${msg.from.first_name || ""} (@${msg.from.username || "нет"})\n🆔 ${chat_id}\n\n"${text}"`);
+  await send(chat_id, `✅ Сообщение получено! Ответим в ближайшее время.\n\nПока — воспользуйтесь меню:`, { reply_markup: MAIN_MENU });
 }
 
 // =============================================
-// LONG POLLING
+// HTTP-СЕРВЕР ДЛЯ RAILWAY
+// Railway требует открытый порт, иначе убивает процесс
+// =============================================
+const http = require("http");
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("НЕЙРО бот работает ✅");
+}).listen(PORT, () => {
+  console.log(`✅ HTTP health-check запущен на порту ${PORT}`);
+});
+
+// =============================================
+// LONG POLLING — со сбросом webhook при старте
 // =============================================
 let offset = 0;
+
 async function poll() {
   try {
-    const res = await fetch(`${API}/getUpdates?offset=${offset}&timeout=30`);
+    const res = await _fetch(`${API}/getUpdates?offset=${offset}&timeout=30`);
     const data = await res.json();
     if (data.ok && data.result.length > 0) {
       for (const update of data.result) {
@@ -369,5 +337,20 @@ async function poll() {
   setTimeout(poll, 1000);
 }
 
-console.log("🤖 НЕЙРО бот v2 запущен...");
-poll();
+async function start() {
+  console.log("🤖 НЕЙРО бот v2.1 запускается...");
+
+  // Сбрасываем webhook — иначе long polling не работает
+  const wh = await api("deleteWebhook", { drop_pending_updates: false });
+  if (wh && wh.ok) console.log("✅ Webhook сброшен");
+  else console.warn("⚠️  Не удалось сбросить webhook:", wh);
+
+  // Проверяем токен
+  const me = await api("getMe");
+  if (!me || !me.ok) { console.error("❌ Неверный токен или нет сети"); process.exit(1); }
+  console.log(`✅ Бот запущен: @${me.result.username}`);
+
+  poll();
+}
+
+start();
