@@ -2,20 +2,20 @@
 // НЕЙРО — Telegram бот v3
 // Skills: community-marketing + sales-enablement
 // =============================================
- 
+
 const TOKEN = process.env.BOT_TOKEN || "8605154591:AAGo3GeD-cMkYa6Q7D5872flQbP0y1NY4qE";
 const OWNER_CHAT_ID = 551749665;
 const API = `https://api.telegram.org/bot${TOKEN}`;
- 
+
 let _fetch;
 try { _fetch = fetch; if (typeof _fetch === "undefined") throw new Error(); }
 catch { try { _fetch = require("node-fetch"); } catch { console.error("npm install node-fetch"); process.exit(1); } }
- 
+
 // =============================================
 // ХРАНИЛИЩЕ
 // =============================================
 const users = {};
- 
+
 function getUser(chat_id, from) {
   if (!users[chat_id]) users[chat_id] = { ...from, state: "idle", persona: null, contact: {}, started_at: Date.now(), unsubscribed: false };
   return users[chat_id];
@@ -24,7 +24,7 @@ function resetUser(chat_id, from) {
   users[chat_id] = { ...from, state: "idle", persona: null, contact: {}, started_at: Date.now(), unsubscribed: false };
   return users[chat_id];
 }
- 
+
 // =============================================
 // УТИЛИТЫ
 // =============================================
@@ -39,7 +39,7 @@ async function answerCallback(id) { return api("answerCallbackQuery", { callback
 function schedule(chat_id, hours, text, keyboard) {
   setTimeout(async () => { const u = users[chat_id]; if (u && !u.unsubscribed) await send(chat_id, text, keyboard ? { reply_markup: keyboard } : {}); }, hours * 3600 * 1000);
 }
- 
+
 // =============================================
 // МЕНЮ
 // =============================================
@@ -50,7 +50,7 @@ const MAIN_MENU = {
     [{ text: "🔄 Начать сначала", callback_data: "restart" }],
   ],
 };
- 
+
 // =============================================
 // PERSONA-BASED ПРИВЕТСТВИЕ (community-marketing: shared identity)
 // =============================================
@@ -61,7 +61,7 @@ const PERSONA_SELECT = {
     [{ text: "📊 Я руководитель отдела / менеджер", callback_data: "persona_manager" }],
   ],
 };
- 
+
 const PERSONA_MESSAGES = {
   persona_director: {
     label: "директор",
@@ -85,7 +85,7 @@ const PERSONA_MESSAGES = {
       `Что вас интересует?`,
   },
 };
- 
+
 // =============================================
 // ОТРАБОТКА ВОЗРАЖЕНИЙ (sales-enablement: objection handling)
 // =============================================
@@ -99,7 +99,7 @@ const OBJECTIONS_MENU = {
     [{ text: "← Главное меню", callback_data: "main_menu" }],
   ],
 };
- 
+
 const OBJECTIONS = {
   obj_budget: {
     text:
@@ -139,7 +139,7 @@ const OBJECTIONS = {
       `Это всё, что нужно для внутренней защиты бюджета. Многие наши проекты начинались именно так — аудит → презентация руководству → старт.`,
   },
 };
- 
+
 // =============================================
 // КОНТЕНТ — КЕЙСЫ
 // =============================================
@@ -178,7 +178,7 @@ const CONTENT = {
     keyboard: { inline_keyboard: [[{ text: "🎯 Записаться на аудит", callback_data: "start_collect" }], [{ text: "← Меню", callback_data: "main_menu" }]] },
   },
 };
- 
+
 // =============================================
 // СБОР КОНТАКТОВ — с discovery-вопросами (sales-enablement)
 // =============================================
@@ -197,7 +197,7 @@ async function startCollect(chat_id, user) {
     ]}}
   );
 }
- 
+
 async function afterDiscovery(chat_id, user, problem) {
   user.contact.problem = problem;
   user.state = "collecting_name";
@@ -206,7 +206,7 @@ async function afterDiscovery(chat_id, user, problem) {
     { reply_markup: { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "main_menu" }]] } }
   );
 }
- 
+
 async function askIndustry(chat_id) {
   await send(chat_id, `🏭 Ваша отрасль:`, { reply_markup: { inline_keyboard: [
     [{ text: "Производство", callback_data: "industry_Производство" }, { text: "Торговля / E-com", callback_data: "industry_Торговля" }],
@@ -215,7 +215,7 @@ async function askIndustry(chat_id) {
     [{ text: "Другое — напишу сам", callback_data: "industry_other" }],
   ]}});
 }
- 
+
 async function handleCollecting(chat_id, user, text) {
   switch (user.state) {
     case "collecting_name":
@@ -241,11 +241,11 @@ async function handleCollecting(chat_id, user, text) {
       break;
   }
 }
- 
+
 async function finishCollect(chat_id, user) {
   user.state = "done";
   const c = user.contact;
- 
+
   await send(OWNER_CHAT_ID,
     `🔥 *Новый лид — бот*\n\n` +
     `👤 *Имя:* ${c.name || "—"}\n` +
@@ -257,20 +257,20 @@ async function finishCollect(chat_id, user) {
     `🔗 *Telegram:* @${user.username || "нет"}\n` +
     `🆔 *chat_id:* ${chat_id}`
   );
- 
+
   await send(chat_id,
     `✅ *Заявка принята!*\n\nЭксперт свяжется в течение *2 часов* в рабочее время.\n\n` +
     `Вы уже среди 40+ компаний, которые выбрали осознанный подход к автоматизации. Хорошее решение. 👍`,
     { reply_markup: MAIN_MENU }
   );
- 
+
   // Прогрев — через 24 часа
   schedule(chat_id, 24,
     `💡 *Пока готовимся к звонку*\n\nКомпании, начавшие с одного процесса, получают ROI на 40% быстрее тех, кто ждёт «идеального момента». Обсудим, с чего начать именно вам. 🚀`,
     { inline_keyboard: [[{ text: "← Меню", callback_data: "main_menu" }]] }
   );
 }
- 
+
 // =============================================
 // CALLBACK
 // =============================================
@@ -279,20 +279,20 @@ async function handleCallback(query) {
   const data = query.data;
   const user = getUser(chat_id, query.from);
   await answerCallback(query.id);
- 
+
   // Системные
   if (data === "restart") { resetUser(chat_id, query.from); await sendWelcome(chat_id); return; }
   if (data === "main_menu") { user.state = "idle"; await sendWelcome(chat_id); return; }
   if (data === "start_collect") { await startCollect(chat_id, user); return; }
   if (data === "objections") { await send(chat_id, `Что вас беспокоит?`, { reply_markup: OBJECTIONS_MENU }); return; }
- 
+
   // Персоны (sales-enablement: persona routing)
   if (data.startsWith("persona_")) {
     const p = PERSONA_MESSAGES[data];
     if (p) { user.persona = p.label; await send(chat_id, p.text, { reply_markup: MAIN_MENU }); }
     return;
   }
- 
+
   // Discovery
   const discMap = {
     disc_docs: "Ручной документооборот",
@@ -302,7 +302,7 @@ async function handleCallback(query) {
     disc_analytics: "Нет аналитики / прогнозирования",
   };
   if (data in discMap) { await afterDiscovery(chat_id, user, discMap[data]); return; }
- 
+
   // Возражения (sales-enablement: objection handling)
   if (data in OBJECTIONS) {
     const o = OBJECTIONS[data];
@@ -312,7 +312,7 @@ async function handleCallback(query) {
     ]}});
     return;
   }
- 
+
   // Вопрос
   if (data === "ask_question") {
     await send(chat_id, `💬 Напишите вопрос — ответим в ближайшие часы.\n\nИли переходите на сайт:`, { reply_markup: { inline_keyboard: [
@@ -321,20 +321,20 @@ async function handleCallback(query) {
     ]}});
     return;
   }
- 
+
   if (data === "skip_company") { user.contact.company = "не указана"; user.state = "collecting_industry"; await askIndustry(chat_id); return; }
- 
+
   if (data.startsWith("industry_")) {
     const industry = data.replace("industry_", "");
     if (industry === "other") { user.state = "collecting_industry"; await send(chat_id, `Напишите вашу отрасль:`); }
     else { user.contact.industry = industry; await finishCollect(chat_id, user); }
     return;
   }
- 
+
   // Контент
   if (CONTENT[data]) { await send(chat_id, CONTENT[data].text, { reply_markup: CONTENT[data].keyboard }); return; }
 }
- 
+
 // =============================================
 // ПРИВЕТСТВИЕ с persona selection (community-marketing)
 // =============================================
@@ -344,7 +344,7 @@ async function sendWelcome(chat_id) {
     { reply_markup: PERSONA_SELECT }
   );
 }
- 
+
 // =============================================
 // ОБРАБОТКА СООБЩЕНИЙ
 // =============================================
@@ -352,7 +352,7 @@ async function handleMessage(msg) {
   const chat_id = msg.chat.id;
   const text = (msg.text || "").trim();
   const user = getUser(chat_id, msg.from);
- 
+
   if (text === "/start") {
     resetUser(chat_id, msg.from);
     await api("sendMessage", { chat_id: OWNER_CHAT_ID, text: `🤖 Новый пользователь\n👤 ${msg.from.first_name || ""} (@${msg.from.username || "нет"})\n🆔 ${chat_id}`, parse_mode: "Markdown" });
@@ -371,23 +371,23 @@ async function handleMessage(msg) {
     );
     return;
   }
- 
+
   if (text === "/restart" || text === "/menu") { resetUser(chat_id, msg.from); await sendWelcome(chat_id); return; }
   if (text === "/stop") { user.unsubscribed = true; await send(chat_id, `Вы отписались. Напишите /start чтобы вернуться.`); return; }
   if (text === "/help") { await send(chat_id, `/start — начало\n/restart — сначала\n/menu — меню\n/stop — отписаться`); return; }
- 
+
   // Discovery state
   if (user.state === "discovery") { await afterDiscovery(chat_id, user, text); return; }
- 
+
   // Collecting states
   const collecting = ["collecting_name", "collecting_phone", "collecting_company", "collecting_industry"];
   if (collecting.includes(user.state)) { await handleCollecting(chat_id, user, text); return; }
- 
+
   // Любое сообщение
   await api("sendMessage", { chat_id: OWNER_CHAT_ID, text: `💬 Сообщение\n👤 ${msg.from.first_name || ""} (@${msg.from.username || "нет"})\n🆔 ${chat_id}\n\n"${text}"`, parse_mode: "Markdown" });
   await send(chat_id, `✅ Получили! Ответим в ближайшее время.`, { reply_markup: MAIN_MENU });
 }
- 
+
 // =============================================
 // LONG POLLING
 // =============================================
@@ -406,17 +406,17 @@ async function poll() {
   } catch (e) { console.error("Poll:", e.message); }
   setTimeout(poll, 1000);
 }
- 
+
 // =============================================
 // HTTP-сервер: health-check + /api/lead для формы сайта
 // =============================================
 const http = require("http");
- 
+
 // Разрешённые источники для CORS. Можно расширить через env.
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS
   || "https://blackithart.com,https://www.blackithart.com"
 ).split(",").map(s => s.trim()).filter(Boolean);
- 
+
 function corsHeadersFor(req) {
   const origin = req.headers.origin || "";
   const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
@@ -428,7 +428,7 @@ function corsHeadersFor(req) {
     "Vary": "Origin",
   };
 }
- 
+
 function pickValue(data, ...keys) {
   for (const k of keys) {
     const v = data[k];
@@ -436,7 +436,7 @@ function pickValue(data, ...keys) {
   }
   return "";
 }
- 
+
 async function handleLead(req, res) {
   const cors = corsHeadersFor(req);
   try {
@@ -449,18 +449,18 @@ async function handleLead(req, res) {
         return;
       }
     }
- 
+
     let data;
     try { data = JSON.parse(raw || "{}"); }
     catch { data = {}; }
- 
+
     // Honeypot
     if (data._honey) {
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, note: "honeypot" }));
       return;
     }
- 
+
     const name     = pickValue(data, "Имя", "name");
     const surname  = pickValue(data, "Фамилия", "surname");
     const phone    = pickValue(data, "Телефон", "phone");
@@ -469,13 +469,13 @@ async function handleLead(req, res) {
     const telegram = pickValue(data, "Telegram", "telegram");
     const industry = pickValue(data, "Отрасль", "industry");
     const task     = pickValue(data, "Задача", "task");
- 
+
     if (!name || !phone) {
       res.writeHead(400, { ...cors, "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: "name_and_phone_required" }));
       return;
     }
- 
+
     const lines = [
       "🔔 *Новая заявка с лендинга NEURO_OS*",
       "",
@@ -487,13 +487,13 @@ async function handleLead(req, res) {
     if (company)  lines.push(`🏢 *Компания:* ${company}`);
     if (industry) lines.push(`🏭 *Отрасль:* ${industry}`);
     if (task)     lines.push(`💬 *Задача:* ${task}`);
- 
+
     const result = await api("sendMessage", {
       chat_id: OWNER_CHAT_ID,
       text: lines.join("\n"),
       parse_mode: "Markdown",
     });
- 
+
     if (result && result.ok) {
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
@@ -509,34 +509,44 @@ async function handleLead(req, res) {
     res.end(JSON.stringify({ ok: false, error: "internal" }));
   }
 }
- 
-http.createServer((req, res) => {
+
+const httpServer = http.createServer((req, res) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
     res.writeHead(204, corsHeadersFor(req));
     res.end();
     return;
   }
- 
+
   // Health-check
   if (req.method === "GET" && (req.url === "/" || req.url === "/health")) {
     res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
     res.end("OK · NEURO_OS bot · v3");
     return;
   }
- 
+
   // Lead-эндпоинт для формы сайта
   if (req.method === "POST" && req.url === "/api/lead") {
     return handleLead(req, res);
   }
- 
+
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
   res.end("Not found");
-}).listen(process.env.PORT || 3000, () => {
-  console.log(`HTTP listening on port ${process.env.PORT || 3000}`);
+});
+
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const HOST = "0.0.0.0"; // ВАЖНО: явный бинд на все интерфейсы IPv4, иначе Railway не достучится
+
+httpServer.on("error", (err) => {
+  console.error("[HTTP] server error:", err.code, err.message);
+});
+
+httpServer.listen(PORT, HOST, () => {
+  const addr = httpServer.address();
+  console.log(`HTTP listening on ${addr.address}:${addr.port}`);
   console.log(`Allowed origins: ${ALLOWED_ORIGINS.join(", ")}`);
 });
- 
+
 async function start() {
   console.log("🤖 НЕЙРО бот v3 запускается...");
   const wh = await api("deleteWebhook", { drop_pending_updates: false });
@@ -546,5 +556,5 @@ async function start() {
   console.log(`✅ Бот: @${me.result.username}`);
   poll();
 }
- 
+
 start();
